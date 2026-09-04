@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DemoPactProvider.Api/DemoPactProvider.Api.csproj" />
+  <Project Path="DemoPactProvider.ContractTests/DemoPactProvider.ContractTests.csproj" />
+</Solution>

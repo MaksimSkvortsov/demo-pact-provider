@@ -1,0 +1,40 @@
+name: Verify Contracts
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify-contracts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout provider
+        uses: actions/checkout@v4
+
+      - name: Checkout TypeScript consumer contracts
+        uses: actions/checkout@v4
+        with:
+          repository: YOUR_GITHUB_OWNER_OR_ORG/demo-pact-consumer-ts
+          path: contracts/ts
+
+      - name: Checkout .NET consumer contracts
+        uses: actions/checkout@v4
+        with:
+          repository: YOUR_GITHUB_OWNER_OR_ORG/demo-pact-consumer-dotnet
+          path: contracts/dotnet
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run provider contract tests
+        run: dotnet test --configuration Release --no-build --logger "console;verbosity=normal"
