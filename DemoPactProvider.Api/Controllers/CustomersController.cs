@@ -14,7 +14,6 @@ public sealed class CustomersController : ControllerBase
         return Ok(new CustomerResponse(
             Id: id,
             Name: "John",
-            Email: "john@example.com",
-            Phone: "555-1234"));
+            Email: "john@example.com"));
     }
 }

@@ -6,6 +6,7 @@ using Xunit.Abstractions;
 
 namespace DemoPactProvider.ContractTests;
 
+[Collection("Provider verification")]
 public sealed class ProviderContractTests
 {
     private const string ProviderName = "customer-provider";
@@ -110,7 +111,9 @@ public sealed class ProviderContractTests
         public static async Task<RunningProvider> StartAsync()
         {
             var baseUri = new Uri($"http://127.0.0.1:{GetAvailablePort()}");
-            var app = Program.BuildApp(["--urls", baseUri.ToString()]);
+            var app = Program.BuildApp([]);
+
+            app.Urls.Add(baseUri.ToString());
             await app.StartAsync();
 
             var provider = new RunningProvider(app, baseUri);
@@ -127,25 +130,29 @@ public sealed class ProviderContractTests
 
         private async Task WaitUntilReadyAsync()
         {
-            using var client = new HttpClient();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(1)
+            };
 
-            while (!timeout.IsCancellationRequested)
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+
+            while (DateTimeOffset.UtcNow < deadline)
             {
                 try
                 {
-                    using var response = await client.GetAsync(new Uri(BaseUri, "/customers/123"), timeout.Token);
+                    using var response = await client.GetAsync(new Uri(BaseUri, "/customers/123"));
 
                     if (response.StatusCode == HttpStatusCode.OK)
                     {
                         return;
                     }
                 }
-                catch (HttpRequestException)
+                catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
                 {
                 }
 
-                await Task.Delay(100, timeout.Token);
+                await Task.Delay(100);
             }
 
             throw new TimeoutException($"Provider did not start at {BaseUri}.");
@@ -167,3 +174,6 @@ public sealed class ProviderContractTests
         }
     }
 }
+
+[CollectionDefinition("Provider verification", DisableParallelization = true)]
+public sealed class ProviderVerificationCollection;
