@@ -85,11 +85,9 @@ $env:PACT_DOTNET_PACT_DIR = "C:\path\to\demo-pact-consumer-dotnet\pacts"
 dotnet test
 ```
 
-## GitHub Actions Placeholders
+## GitHub Actions
 
-The workflow in `.github/workflows/verify-contracts.yml` contains these placeholders:
+The workflow in `.github/workflows/verify-contracts.yml` checks out the consumer repositories from:
 
-- `YOUR_GITHUB_OWNER_OR_ORG/demo-pact-consumer-ts`
-- `YOUR_GITHUB_OWNER_OR_ORG/demo-pact-consumer-dotnet`
-
-Replace `YOUR_GITHUB_OWNER_OR_ORG` with the GitHub owner or organization that contains the two consumer repositories.
+- `MaksimSkvortsov/demo-pact-consumer-ts`
+- `MaksimSkvortsov/demo-pact-consumer-dotnet`

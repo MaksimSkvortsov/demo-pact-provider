@@ -8,7 +8,7 @@ namespace DemoPactProvider.ContractTests;
 
 public sealed class ProviderContractTests
 {
-    private const string ProviderName = "Demo Pact Provider";
+    private const string ProviderName = "customer-provider";
 
     private readonly ITestOutputHelper output;
 

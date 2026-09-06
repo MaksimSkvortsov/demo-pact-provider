@@ -16,13 +16,13 @@ jobs:
       - name: Checkout TypeScript consumer contracts
         uses: actions/checkout@v4
         with:
-          repository: YOUR_GITHUB_OWNER_OR_ORG/demo-pact-consumer-ts
+          repository: MaksimSkvortsov/demo-pact-consumer-ts
           path: contracts/ts
 
       - name: Checkout .NET consumer contracts
         uses: actions/checkout@v4
         with:
-          repository: YOUR_GITHUB_OWNER_OR_ORG/demo-pact-consumer-dotnet
+          repository: MaksimSkvortsov/demo-pact-consumer-dotnet
           path: contracts/dotnet
 
       - name: Setup .NET
