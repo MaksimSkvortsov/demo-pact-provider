@@ -8,9 +8,12 @@ using Xunit.Abstractions;
 
 namespace DemoPactProvider.ContractTests;
 
+// Pact verifier tests start real HTTP servers, so keep them serial for clearer logs
+// and to avoid multiple verifier runs competing for local resources in the demo.
 [Collection("Provider verification")]
 public sealed class ProviderContractTests
 {
+    // This must match the provider name written into the consumer Pact files.
     private const string ProviderName = "customer-provider";
 
     private readonly ITestOutputHelper output;
@@ -23,6 +26,8 @@ public sealed class ProviderContractTests
     [Fact]
     public async Task Verify_TypeScript_Consumer()
     {
+        // Keep each consumer in its own test so the test output identifies the
+        // affected consumer when a provider change breaks a contract.
         await VerifyConsumerPactsAsync(
             environmentVariableName: "PACT_TS_PACT_DIR",
             defaultRelativePath: Path.Combine("contracts", "ts", "pacts"));
@@ -31,6 +36,8 @@ public sealed class ProviderContractTests
     [Fact]
     public async Task Verify_DotNet_Consumer()
     {
+        // The .NET consumer contract is verified separately from the TypeScript
+        // contract because the two consumers depend on different response fields.
         await VerifyConsumerPactsAsync(
             environmentVariableName: "PACT_DOTNET_PACT_DIR",
             defaultRelativePath: Path.Combine("contracts", "dotnet", "pacts"));
@@ -38,6 +45,8 @@ public sealed class ProviderContractTests
 
     private async Task VerifyConsumerPactsAsync(string environmentVariableName, string defaultRelativePath)
     {
+        // CI checks out consumer repositories into contracts/*, but the env var
+        // override makes local verification easy against any generated Pact folder.
         var pactDirectory = ResolvePactDirectory(environmentVariableName, defaultRelativePath);
         var pactFiles = pactDirectory.Exists
             ? pactDirectory.GetFiles("*.json", SearchOption.TopDirectoryOnly)
@@ -47,6 +56,8 @@ public sealed class ProviderContractTests
         {
             var message = $"No Pact JSON files found in '{pactDirectory.FullName}'. Set {environmentVariableName} to override this path.";
 
+            // Locally, missing Pact files are a convenience skip. In GitHub Actions,
+            // missing Pact files should fail because the provider was not verified.
             if (IsCi())
             {
                 throw new InvalidOperationException(message);
@@ -59,11 +70,15 @@ public sealed class ProviderContractTests
         var config = new PactVerifierConfig
         {
             LogLevel = PactLogLevel.Information,
+            // Send Pact verifier output into xUnit so Actions shows the exact
+            // mismatch, for example "Actual map is missing ... name".
             Outputters = [new XunitOutput(output)]
         };
 
         foreach (var pactFile in pactFiles.OrderBy(file => file.Name))
         {
+            // Start the real ASP.NET Core provider. Pact then exercises the same
+            // controller endpoint an external consumer would call over HTTP.
             await using var provider = await RunningProvider.StartAsync();
 
             output.WriteLine($"Provider listening at {provider.BaseUri}");
@@ -72,6 +87,8 @@ public sealed class ProviderContractTests
             new PactVerifier(ProviderName, config)
                 .WithHttpEndpoint(provider.BaseUri)
                 .WithFileSource(pactFile)
+                // If a consumer contract includes provider states, Pact will call
+                // this endpoint before verifying the interaction.
                 .WithProviderStateUrl(new Uri(provider.BaseUri, "/provider-states"))
                 .Verify();
         }
@@ -124,6 +141,8 @@ public sealed class ProviderContractTests
             var baseUri = new Uri($"http://127.0.0.1:{GetAvailablePort()}");
             var app = Program.BuildApp([]);
 
+            // Bind explicitly to the selected local port instead of relying on
+            // launchSettings.json or the default development ports.
             app.Urls.Add(baseUri.ToString());
             await app.StartAsync();
 
@@ -152,6 +171,9 @@ public sealed class ProviderContractTests
             {
                 try
                 {
+                    // Probe the real contract endpoint before handing it to Pact.
+                    // This avoids reporting a contract failure when the server is
+                    // simply not ready yet.
                     using var response = await client.GetAsync(new Uri(BaseUri, "/customers/123"));
 
                     if (response.StatusCode == HttpStatusCode.OK)
@@ -171,6 +193,8 @@ public sealed class ProviderContractTests
 
         private static int GetAvailablePort()
         {
+            // Ask the OS for a free port, then reuse that port for the short-lived
+            // provider instance started by this test.
             var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
 
             try
