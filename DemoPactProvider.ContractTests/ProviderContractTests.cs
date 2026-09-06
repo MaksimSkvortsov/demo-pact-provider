@@ -1,11 +1,14 @@
 using System.Net;
 using DemoPactProvider.Api;
 using Microsoft.AspNetCore.Builder;
+using PactNet;
+using PactNet.Infrastructure.Outputters;
 using PactNet.Verifier;
 using Xunit.Abstractions;
 
 namespace DemoPactProvider.ContractTests;
 
+[Collection("Provider verification")]
 public sealed class ProviderContractTests
 {
     private const string ProviderName = "customer-provider";
@@ -53,16 +56,25 @@ public sealed class ProviderContractTests
             return;
         }
 
-        await using var provider = await RunningProvider.StartAsync();
+        var config = new PactVerifierConfig
+        {
+            LogLevel = PactLogLevel.Information,
+            Outputters = [new XunitOutput(output)]
+        };
 
-        output.WriteLine($"Provider listening at {provider.BaseUri}");
-        output.WriteLine($"Verifying Pact files from {pactDirectory.FullName}");
+        foreach (var pactFile in pactFiles.OrderBy(file => file.Name))
+        {
+            await using var provider = await RunningProvider.StartAsync();
 
-        new PactVerifier(ProviderName)
-            .WithHttpEndpoint(provider.BaseUri)
-            .WithDirectorySource(pactDirectory, ["*.json"])
-            .WithProviderStateUrl(new Uri(provider.BaseUri, "/provider-states"))
-            .Verify();
+            output.WriteLine($"Provider listening at {provider.BaseUri}");
+            output.WriteLine($"Verifying Pact file {pactFile.FullName}");
+
+            new PactVerifier(ProviderName, config)
+                .WithHttpEndpoint(provider.BaseUri)
+                .WithFileSource(pactFile)
+                .WithProviderStateUrl(new Uri(provider.BaseUri, "/provider-states"))
+                .Verify();
+        }
     }
 
     private static DirectoryInfo ResolvePactDirectory(string environmentVariableName, string defaultRelativePath)
@@ -110,7 +122,9 @@ public sealed class ProviderContractTests
         public static async Task<RunningProvider> StartAsync()
         {
             var baseUri = new Uri($"http://127.0.0.1:{GetAvailablePort()}");
-            var app = Program.BuildApp(["--urls", baseUri.ToString()]);
+            var app = Program.BuildApp([]);
+
+            app.Urls.Add(baseUri.ToString());
             await app.StartAsync();
 
             var provider = new RunningProvider(app, baseUri);
@@ -127,25 +141,29 @@ public sealed class ProviderContractTests
 
         private async Task WaitUntilReadyAsync()
         {
-            using var client = new HttpClient();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(1)
+            };
 
-            while (!timeout.IsCancellationRequested)
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+
+            while (DateTimeOffset.UtcNow < deadline)
             {
                 try
                 {
-                    using var response = await client.GetAsync(new Uri(BaseUri, "/customers/123"), timeout.Token);
+                    using var response = await client.GetAsync(new Uri(BaseUri, "/customers/123"));
 
                     if (response.StatusCode == HttpStatusCode.OK)
                     {
                         return;
                     }
                 }
-                catch (HttpRequestException)
+                catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
                 {
                 }
 
-                await Task.Delay(100, timeout.Token);
+                await Task.Delay(100);
             }
 
             throw new TimeoutException($"Provider did not start at {BaseUri}.");
@@ -166,4 +184,22 @@ public sealed class ProviderContractTests
             }
         }
     }
+
+    private sealed class XunitOutput : IOutput
+    {
+        private readonly ITestOutputHelper output;
+
+        public XunitOutput(ITestOutputHelper output)
+        {
+            this.output = output;
+        }
+
+        public void WriteLine(string line)
+        {
+            output.WriteLine(line);
+        }
+    }
 }
+
+[CollectionDefinition("Provider verification", DisableParallelization = true)]
+public sealed class ProviderVerificationCollection;
