@@ -1,6 +1,8 @@
 using System.Net;
 using DemoPactProvider.Api;
 using Microsoft.AspNetCore.Builder;
+using PactNet;
+using PactNet.Infrastructure.Outputters;
 using PactNet.Verifier;
 using Xunit.Abstractions;
 
@@ -54,16 +56,25 @@ public sealed class ProviderContractTests
             return;
         }
 
-        await using var provider = await RunningProvider.StartAsync();
+        var config = new PactVerifierConfig
+        {
+            LogLevel = PactLogLevel.Information,
+            Outputters = [new XunitOutput(output)]
+        };
 
-        output.WriteLine($"Provider listening at {provider.BaseUri}");
-        output.WriteLine($"Verifying Pact files from {pactDirectory.FullName}");
+        foreach (var pactFile in pactFiles.OrderBy(file => file.Name))
+        {
+            await using var provider = await RunningProvider.StartAsync();
 
-        new PactVerifier(ProviderName)
-            .WithHttpEndpoint(provider.BaseUri)
-            .WithDirectorySource(pactDirectory, ["*.json"])
-            .WithProviderStateUrl(new Uri(provider.BaseUri, "/provider-states"))
-            .Verify();
+            output.WriteLine($"Provider listening at {provider.BaseUri}");
+            output.WriteLine($"Verifying Pact file {pactFile.FullName}");
+
+            new PactVerifier(ProviderName, config)
+                .WithHttpEndpoint(provider.BaseUri)
+                .WithFileSource(pactFile)
+                .WithProviderStateUrl(new Uri(provider.BaseUri, "/provider-states"))
+                .Verify();
+        }
     }
 
     private static DirectoryInfo ResolvePactDirectory(string environmentVariableName, string defaultRelativePath)
@@ -171,6 +182,21 @@ public sealed class ProviderContractTests
             {
                 listener.Stop();
             }
+        }
+    }
+
+    private sealed class XunitOutput : IOutput
+    {
+        private readonly ITestOutputHelper output;
+
+        public XunitOutput(ITestOutputHelper output)
+        {
+            this.output = output;
+        }
+
+        public void WriteLine(string line)
+        {
+            output.WriteLine(line);
         }
     }
 }
