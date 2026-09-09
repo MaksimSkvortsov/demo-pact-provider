@@ -28,13 +28,21 @@ The initial provider response is:
 
 Each consumer repository owns its own expectations for `customer-provider`.
 
+Consumers do not start or call the real provider when they create contracts. Instead, each consumer writes Pact tests around its own client code: the class, function, SDK wrapper, or other abstraction it uses to call the external provider API.
+
+In this demo:
+
+- `demo-pact-consumer-ts` tests its TypeScript `CustomerClient`.
+- `demo-pact-consumer-dotnet` tests its .NET `CustomerClient`.
+
 Consumer CI runs the consumer Pact test:
 
 1. The test starts a temporary Pact mock provider.
-2. The real consumer client calls that mock provider.
-3. Pact checks that the client made the expected request.
-4. Pact writes the generated contract to `pacts/`.
-5. The generated Pact JSON is committed in the consumer repository.
+2. The test configures the mock provider with the HTTP request and response shape the consumer expects.
+3. The real consumer client calls that mock provider, not the real provider application.
+4. Pact checks that the client made the expected request.
+5. Pact writes the generated contract to `pacts/`.
+6. The generated Pact JSON is committed in the consumer repository.
 
 The consumer Pact files are:
 
