@@ -32,6 +32,26 @@ Each consumer repository owns its own expectations for `customer-provider`.
 
 Consumers do not start or call the real provider when they create contracts. Instead, each consumer writes Pact tests around its own client code: the class, function, SDK wrapper, or other abstraction it uses to call the external provider API.
 
+**What runs in production:**
+
+```mermaid
+flowchart LR
+    A[Application Service] --> B[Some Client]
+    B --> C[Real Web Server]
+```
+
+**What the consumer Pact test exercises instead:**
+
+```mermaid
+flowchart LR
+    P[Pact Test] --> B[Some Client]
+    B --> F["Fake Web Server<br/>(pact mock provider)"]
+    P -.configures expectations.-> F
+    F -.verifies request/response.-> P
+```
+
+The test never touches `Application Service` or the `Real Web Server`. It drives `Some Client` directly and points it at a Pact-managed fake server, so the resulting contract only pins down what the client actually sends and expects back.
+
 In this demo:
 
 - `demo-pact-consumer-ts` tests its TypeScript `CustomerClient`.
